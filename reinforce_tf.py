@@ -28,32 +28,19 @@ class Policy:
 			indices = tf.reshape(tf.range(size), (-1,1))
 			indices = tf.concat([indices, self.selected_actions],1 )
 			
-
-			# counter = tf.reshape(tf.range(size), (-1,1))
+			variables = tf.trainable_variables()
+			self.gradient_holders = []
+			for idx,var in enumerate(variables):
+				placeholder = tf.placeholder(tf.float32, name=str(idx)+'_holder')
+				self.gradient_holders.append(placeholder)
 
 			self.log_probs = tf.log(tf.gather_nd(self.head, indices))
-			self.loss = -tf.reduce_mean(self.log_probs*self.observed_rewards)
+			self.loss = tf.reduce_mean(self.log_probs*self.observed_rewards)
 
-			self.update = tf.train.AdamOptimizer(3e-3).minimize(self.loss)
-
-
-# ind = np.random.randint(0,3, (10))
-# ind = np.vstack([np.arange(ind.shape[0]), ind]).T
+			self.gradients = tf.gradients(self.loss,variables)
+			self.update = tf.train.AdamOptimizer(5e-3).apply_gradients(zip(self.gradient_holders, variables))
 
 
-# x = tf.constant(np.random.randint(0,5, (10,3)))
-# ind = tf.constant(ind)
-
-
-# result = tf.gather_nd(x, ind)
-
-# sess = tf.Session()
-
-# print('X: {}\nInd: {}\nResult: {} of shape {}'.format(*sess.run([x,ind,result, tf.shape(result)])))
-
-
-# r,s = sess.run([result, tf.shape(result)])
-# print(type(r), s, type(s))
 
 def discount(r): 
 
@@ -77,6 +64,9 @@ with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 
 
+	grad_buffer = sess.run(tf.trainable_variables())
+	for i,g in enumerate(grad_buffer): 
+		grad_buffer[i] *= 0. 
 
 	mean_r = 0. 
 	for epoch in range(epochs): 
@@ -114,9 +104,19 @@ with tf.Session() as sess:
 				states = np.stack(states)
 
 
-				sess.run(agent.update, feed_dict = {agent.state: states, 
+				grads = sess.run(agent.gradients, feed_dict = {agent.state: states, 
 													agent.observed_rewards: discounted,
 													agent.selected_actions: actions})
+
+				for i,g in enumerate(grads): 
+					grad_buffer[i] += g
+
+				if epoch % 5 == 0: 
+					dico = dict(zip(agent.gradient_holders, grad_buffer))
+					sess.run(agent.update, feed_dict = dico)
+
+					for i, g in enumerate(grad_buffer): 
+						grad_buffer[i] = g*0.
 
 				if epoch%100 == 0: 
 					print('Epoch: {} - Reward: {}'.format(epoch, mean_r/100.))
