@@ -28,6 +28,7 @@ class Loader:
 
 noise_size = 50
 loader = Loader('/home/mehdi/Codes/MNIST/', 60000)
+initializer = tf.truncated_normal_initializer(stddev=0.02)
 
 def Generator(input_var, reuse = False):
 
@@ -36,8 +37,8 @@ def Generator(input_var, reuse = False):
 		# input_var = tf.placeholder(tf.float32, shape = [None, noise_size], name = 'latent_variable')
 		y_gen = tf.placeholder(tf.float32, shape = [None, 1], name = 'truth_measure')
 
-		l1 = dense(input_var, 128, activation = tf.nn.leaky_relu, name = 'first_generator_layer', kernel_initializer = tf.variance_scaling_initializer)
-		l2 = dense(l1, 400, activation = tf.nn.leaky_relu, name = 'second_generator_layer', kernel_initializer = tf.variance_scaling_initializer)
+		l1 = dense(input_var, 128, activation = tf.nn.leaky_relu, name = 'first_generator_layer', kernel_initializer = initializer)
+		l2 = dense(l1, 400, activation = tf.nn.leaky_relu, name = 'second_generator_layer', kernel_initializer = initializer)
 		generator = dense(l2, 784, activation = None, name = 'generator')
 
 		return generator
@@ -48,8 +49,8 @@ def Discriminator(input_var, reuse= False):
 		# x = tf.placeholder(tf.float32, shape = [None, 784], name = 'obs_variable')
 		y_dis = tf.placeholder(tf.float32, shape = [None, 1], name = 'labels')
 
-		l1 = dense(input_var, 400, activation = tf.nn.leaky_relu, name = 'first_generator_layer', kernel_initializer = tf.variance_scaling_initializer)
-		l2 = dense(l1, 128, activation = tf.nn.leaky_relu, name = 'second_generator_layer', kernel_initializer = tf.variance_scaling_initializer)
+		l1 = dense(input_var, 400, activation = tf.nn.leaky_relu, name = 'first_discriminator_layer', kernel_initializer = initializer)
+		l2 = dense(l1, 128, activation = tf.nn.leaky_relu, name = 'second_discriminator_layer', kernel_initializer = initializer)
 		discriminator = dense(l2, 1, activation = None, name = 'generator')
 
 		return discriminator
@@ -75,7 +76,7 @@ train_d = tf.train.AdamOptimizer(1e-4).minimize(d_loss, var_list = d_vars)
 
 
 epochs = 10000
-batch_size = 64 
+batch_size = 128 
 with tf.Session() as sess: 
 
 	sess.run(tf.global_variables_initializer())
@@ -83,23 +84,24 @@ with tf.Session() as sess:
 	mean_loss_g = 0.
 	for epoch in range(1,epochs+1): 
 
-		for i in range(np.random.randint(1,3)):
-			d_x = loader.sample(batch_size)
-			noise = np.random.normal(0,1.,(batch_size, noise_size))
+		# train D 
+		# for i in range(np.random.randint(1,3)):
+		d_x = loader.sample(batch_size)
+		noise = np.random.normal(0,1.,(batch_size, noise_size))
 
-			# train D 
 
-			_ , d_loss_var = sess.run([train_d, d_loss], feed_dict = {x:d_x, z:noise})
-			mean_loss_d += d_loss_var
+		_ , d_loss_var = sess.run([train_d, d_loss], feed_dict = {x:d_x, z:noise})
+		
+		mean_loss_d += d_loss_var
 
 		# train G 
-		for i in range(np.random.randint(1,4)): 
+		for i in range(np.random.randint(2,4)): 
 
 			noise = np.random.normal(0,1.,(batch_size, noise_size))
 			_ , g_loss_var = sess.run([train_g, g_loss], feed_dict = {z:noise})
 
 		mean_loss_g += g_loss_var
-		
+
 		if epoch% 100 == 0: 
 			print('\t\t\t === Epoch: {} === \n\nLoss D: {:.6f}\nLoss G: {:.6f}'.format(epoch, mean_loss_d/100., mean_loss_g/100.))
 			mean_loss_d = 0.
